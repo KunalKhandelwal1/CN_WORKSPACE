@@ -104,6 +104,60 @@ protected:
 };
 
 
+/**
+ * @class TcpEventGymEnv
+ * @brief Event-driven TCP environment that notifies the agent on each TCP event.
+ *
+ * Fires an observation every time a TCP congestion event occurs (ACK received,
+ * packet loss detected, etc.). The observation space contains 10 parameters
+ * capturing the instantaneous TCP state at the moment of the event.
+ *
+ * Reward logic:
+ *   - GetSsThresh (loss detected) → penalty reward
+ *   - IncreaseWindow (ACK received) → positive reward, apply agent's cWnd
+ */
+class TcpEventGymEnv : public TcpGymEnv
+{
+public:
+  TcpEventGymEnv ();
+  virtual ~TcpEventGymEnv ();
+  static TypeId GetTypeId (void);
+  virtual void DoDispose ();
+
+  void SetReward(float value);
+  void SetPenalty(float value);
+
+  // OpenGym interface
+  virtual Ptr<OpenGymSpace> GetObservationSpace();
+  Ptr<OpenGymDataContainer> GetObservation();
+
+  // Packet trace callbacks (no-op for event-based variant)
+  virtual void TxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>);
+  virtual void RxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>);
+
+  // TCP congestion control callbacks
+  virtual uint32_t GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight);
+  virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
+  virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt);
+  virtual void CongestionStateSet (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCongState_t newState);
+  virtual void CwndEvent (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event);
+
+private:
+  // Observation state captured at each event
+  CalledFunc_t m_calledFunc;
+  Ptr<const TcpSocketState> m_tcb;
+  uint32_t m_bytesInFlight;
+  uint32_t m_segmentsAcked;
+  Time m_rtt;
+  TcpSocketState::TcpCongState_t m_newState;
+  TcpSocketState::TcpCAEvent_t m_event;
+
+  // Per-event reward and penalty values
+  float m_reward;
+  float m_penalty;
+};
+
+
 } // namespace ns3
 
 #endif /* TCP_RL_ENV_H */

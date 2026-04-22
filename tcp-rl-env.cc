@@ -263,5 +263,212 @@ TcpGymEnv::ExecuteActions(Ptr<OpenGymDataContainer> action)
   return true;
 }
 
+/*
+ * ============================================================
+ *  TcpEventGymEnv — Event-Driven RL Environment
+ *
+ *  Notifies the Python agent on every TCP congestion event.
+ *  Each notification carries a 10-parameter observation of the
+ *  instantaneous TCP state at the moment of the event.
+ * ============================================================
+ */
+
+NS_OBJECT_ENSURE_REGISTERED (TcpEventGymEnv);
+
+TcpEventGymEnv::TcpEventGymEnv () : TcpGymEnv()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+TcpEventGymEnv::~TcpEventGymEnv ()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+TypeId
+TcpEventGymEnv::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::TcpEventGymEnv")
+    .SetParent<TcpGymEnv> ()
+    .SetGroupName ("OpenGym")
+    .AddConstructor<TcpEventGymEnv> ()
+  ;
+
+  return tid;
+}
+
+void
+TcpEventGymEnv::DoDispose ()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+void
+TcpEventGymEnv::SetReward(float value)
+{
+  NS_LOG_FUNCTION (this);
+  m_reward = value;
+}
+
+void
+TcpEventGymEnv::SetPenalty(float value)
+{
+  NS_LOG_FUNCTION (this);
+  m_penalty = value;
+}
+
+/*
+ * Observation space: 10-parameter box of uint64 values.
+ * Parameters: socketUuid, envType, simTime, nodeId, ssThresh,
+ *             cWnd, segmentSize, segmentsAcked, bytesInFlight, rtt
+ */
+Ptr<OpenGymSpace>
+TcpEventGymEnv::GetObservationSpace()
+{
+  uint32_t parameterNum = 10;
+  float low = 0.0;
+  float high = 1000000000.0;
+  std::vector<uint32_t> shape = {parameterNum,};
+  std::string dtype = TypeNameGet<uint64_t> ();
+
+  Ptr<OpenGymBoxSpace> box = CreateObject<OpenGymBoxSpace> (low, high, shape, dtype);
+  NS_LOG_INFO ("MyGetObservationSpace: " << box);
+  return box;
+}
+
+/*
+ * Collect the current TCP state snapshot as a 10-element observation.
+ * Values are packed as uint64 for compatibility with the Gym interface.
+ */
+Ptr<OpenGymDataContainer>
+TcpEventGymEnv::GetObservation()
+{
+  uint32_t parameterNum = 10;
+  std::vector<uint32_t> shape = {parameterNum,};
+
+  Ptr<OpenGymBoxContainer<uint64_t> > box = CreateObject<OpenGymBoxContainer<uint64_t> >(shape);
+
+  box->AddValue(m_socketUuid);
+  box->AddValue(0);                                     // envType = 0 (event-based)
+  box->AddValue(Simulator::Now().GetMicroSeconds ());    // current simulation time
+  box->AddValue(m_nodeId);
+  box->AddValue(m_tcb->m_ssThresh);
+  box->AddValue(m_tcb->m_cWnd);
+  box->AddValue(m_tcb->m_segmentSize);
+  box->AddValue(m_segmentsAcked);
+  box->AddValue(m_bytesInFlight);
+  box->AddValue(m_rtt.GetMicroSeconds ());
+  NS_LOG_INFO ("MyGetObservation: " << box);
+  return box;
+}
+
+/*
+ * Packet trace callbacks — no-op for the event-based variant since
+ * observations are triggered by congestion events, not individual packets.
+ */
+void
+TcpEventGymEnv::TxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>)
+{
+  NS_LOG_FUNCTION (this);
+}
+
+void
+TcpEventGymEnv::RxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>)
+{
+  NS_LOG_FUNCTION (this);
+}
+
+/*
+ * GetSsThresh — called when packet loss is detected.
+ * Assigns the penalty reward and notifies the agent immediately.
+ * Returns the agent's chosen ssThresh value.
+ */
+uint32_t
+TcpEventGymEnv::GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight)
+{
+  NS_LOG_FUNCTION (this);
+  // Loss detected — assign penalty reward
+  m_envReward = m_penalty;
+
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " GetSsThresh, BytesInFlight: " << bytesInFlight);
+  m_calledFunc = CalledFunc_t::GET_SS_THRESH;
+  m_info = "GetSsThresh";
+  m_tcb = tcb;
+  m_bytesInFlight = bytesInFlight;
+  Notify();
+  return m_new_ssThresh;
+}
+
+/*
+ * IncreaseWindow — called when an ACK is received successfully.
+ * Assigns the positive reward, notifies the agent, and applies the
+ * agent's chosen cWnd value to the TCP socket.
+ */
+void
+TcpEventGymEnv::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
+{
+  NS_LOG_FUNCTION (this);
+  // ACK received — assign positive reward
+  m_envReward = m_reward;
+
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " IncreaseWindow, SegmentsAcked: " << segmentsAcked);
+  m_calledFunc = CalledFunc_t::INCREASE_WINDOW;
+  m_info = "IncreaseWindow";
+  m_tcb = tcb;
+  m_segmentsAcked = segmentsAcked;
+  Notify();
+  tcb->m_cWnd = m_new_cWnd;
+}
+
+/*
+ * PktsAcked — record RTT sample from acknowledged packets.
+ * Does not trigger a Notify; state is stored for the next observation.
+ */
+void
+TcpEventGymEnv::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt)
+{
+  NS_LOG_FUNCTION (this);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " PktsAcked, SegmentsAcked: " << segmentsAcked << " Rtt: " << rtt);
+  m_calledFunc = CalledFunc_t::PKTS_ACKED;
+  m_info = "PktsAcked";
+  m_tcb = tcb;
+  m_segmentsAcked = segmentsAcked;
+  m_rtt = rtt;
+}
+
+/*
+ * CongestionStateSet — log the new congestion state.
+ * Does not trigger a Notify; used for observation context.
+ */
+void
+TcpEventGymEnv::CongestionStateSet (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCongState_t newState)
+{
+  NS_LOG_FUNCTION (this);
+  std::string stateName = GetTcpCongStateName(newState);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " CongestionStateSet: " << newState << " " << stateName);
+
+  m_calledFunc = CalledFunc_t::CONGESTION_STATE_SET;
+  m_info = "CongestionStateSet";
+  m_tcb = tcb;
+  m_newState = newState;
+}
+
+/*
+ * CwndEvent — log the congestion window event.
+ * Does not trigger a Notify; used for observation context.
+ */
+void
+TcpEventGymEnv::CwndEvent (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event)
+{
+  NS_LOG_FUNCTION (this);
+  std::string eventName = GetTcpCAEventName(event);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " CwndEvent: " << event << " " << eventName);
+
+  m_calledFunc = CalledFunc_t::CWND_EVENT;
+  m_info = "CwndEvent";
+  m_tcb = tcb;
+  m_event = event;
+}
+
 
 } // namespace ns3
