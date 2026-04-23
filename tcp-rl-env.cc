@@ -471,4 +471,237 @@ TcpEventGymEnv::CwndEvent (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAE
 }
 
 
+/*
+ * ============================================================
+ *  TcpTimeStepGymEnv — Timestep-Based RL Environment
+ *
+ *  Collects TCP statistics over fixed time windows and sends
+ *  aggregated observations to the agent periodically. This
+ *  provides smoother, less noisy observations compared to the
+ *  event-driven variant.
+ * ============================================================
+ */
+
+NS_OBJECT_ENSURE_REGISTERED (TcpTimeStepGymEnv);
+
+TcpTimeStepGymEnv::TcpTimeStepGymEnv () : TcpGymEnv()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+/*
+ * Schedule the next periodic observation read.
+ * Called after ScheduleNextStateRead re-schedules itself at each
+ * m_timeStep interval, forming a continuous observation loop.
+ */
+void
+TcpTimeStepGymEnv::ScheduleNextStateRead ()
+{
+  NS_LOG_FUNCTION (this);
+  Simulator::Schedule (m_timeStep, &TcpTimeStepGymEnv::ScheduleNextStateRead, this);
+  Notify();
+}
+
+TcpTimeStepGymEnv::~TcpTimeStepGymEnv ()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+TypeId
+TcpTimeStepGymEnv::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::TcpTimeStepGymEnv")
+    .SetParent<TcpGymEnv> ()
+    .SetGroupName ("OpenGym")
+    .AddConstructor<TcpTimeStepGymEnv> ()
+  ;
+
+  return tid;
+}
+
+void
+TcpTimeStepGymEnv::DoDispose ()
+{
+  NS_LOG_FUNCTION (this);
+}
+
+void
+TcpTimeStepGymEnv::SetDuration(Time value)
+{
+  NS_LOG_FUNCTION (this);
+  m_duration = value;
+}
+
+void
+TcpTimeStepGymEnv::SetTimeStep(Time value)
+{
+  NS_LOG_FUNCTION (this);
+  m_timeStep = value;
+}
+
+void
+TcpTimeStepGymEnv::SetReward(float value)
+{
+  NS_LOG_FUNCTION (this);
+  m_reward = value;
+}
+
+void
+TcpTimeStepGymEnv::SetPenalty(float value)
+{
+  NS_LOG_FUNCTION (this);
+  m_penalty = value;
+}
+
+/*
+ * Observation space: 16-parameter box of uint64 values.
+ * Parameters:
+ *   [0]  socketUuid          [1]  envType (1 = timestep)
+ *   [2]  simTime             [3]  nodeId
+ *   [4]  ssThresh            [5]  cWnd
+ *   [6]  segmentSize         [7]  bytesInFlightSum
+ *   [8]  bytesInFlightAvg    [9]  segmentsAckedSum
+ *   [10] segmentsAckedAvg    [11] avgRtt
+ *   [12] minRtt              [13] avgInterTxTime
+ *   [14] avgInterRxTime      [15] throughput (bytes/s)
+ */
+Ptr<OpenGymSpace>
+TcpTimeStepGymEnv::GetObservationSpace()
+{
+  uint32_t parameterNum = 16;
+  float low = 0.0;
+  float high = 1000000000.0;
+  std::vector<uint32_t> shape = {parameterNum,};
+  std::string dtype = TypeNameGet<uint64_t> ();
+
+  Ptr<OpenGymBoxSpace> box = CreateObject<OpenGymBoxSpace> (low, high, shape, dtype);
+  NS_LOG_INFO ("MyGetObservationSpace: " << box);
+  return box;
+}
+
+/*
+ * Collect aggregated TCP statistics over the current time step
+ * and pack them into a 16-element observation vector.
+ */
+Ptr<OpenGymDataContainer>
+TcpTimeStepGymEnv::GetObservation()
+{
+  uint32_t parameterNum = 16;
+  std::vector<uint32_t> shape = {parameterNum,};
+
+  Ptr<OpenGymBoxContainer<uint64_t> > box = CreateObject<OpenGymBoxContainer<uint64_t> >(shape);
+
+  box->AddValue(m_socketUuid);
+  box->AddValue(1);                                     // envType = 1 (timestep-based)
+  box->AddValue(Simulator::Now().GetMicroSeconds ());    // current simulation time
+  box->AddValue(m_nodeId);
+  box->AddValue(m_tcb->m_ssThresh);
+  box->AddValue(m_tcb->m_cWnd);
+  box->AddValue(m_tcb->m_segmentSize);
+
+  // Aggregated bytesInFlight: sum and average
+  uint64_t bytesInFlightSum = std::accumulate(m_bytesInFlight.begin(), m_bytesInFlight.end(), 0);
+  box->AddValue(bytesInFlightSum);
+
+  uint64_t bytesInFlightAvg = 0;
+  if (m_bytesInFlight.size()) {
+    bytesInFlightAvg = bytesInFlightSum / m_bytesInFlight.size();
+  }
+  box->AddValue(bytesInFlightAvg);
+
+  // Aggregated segmentsAcked: sum and average
+  uint64_t segmentsAckedSum = std::accumulate(m_segmentsAcked.begin(), m_segmentsAcked.end(), 0);
+  box->AddValue(segmentsAckedSum);
+
+  uint64_t segmentsAckedAvg = 0;
+  if (m_segmentsAcked.size()) {
+    segmentsAckedAvg = segmentsAckedSum / m_segmentsAcked.size();
+  }
+  box->AddValue(segmentsAckedAvg);
+
+  // Average RTT over the time step
+  Time avgRtt = Seconds(0.0);
+  if(m_rttSampleNum) {
+    avgRtt = m_rttSum / m_rttSampleNum;
+  }
+  box->AddValue(avgRtt.GetMicroSeconds ());
+
+  // Minimum RTT observed by the socket
+  box->AddValue(m_tcb->m_minRtt.GetMicroSeconds ());
+
+  // Average inter-packet transmission time
+  Time avgInterTx = Seconds(0.0);
+  if (m_interTxTimeNum) {
+    avgInterTx = m_interTxTimeSum / m_interTxTimeNum;
+  }
+  box->AddValue(avgInterTx.GetMicroSeconds ());
+
+  // Average inter-packet reception time
+  Time avgInterRx = Seconds(0.0);
+  if (m_interRxTimeNum) {
+    avgInterRx = m_interRxTimeSum / m_interRxTimeNum;
+  }
+  box->AddValue(avgInterRx.GetMicroSeconds ());
+
+  // Throughput in bytes/s over this time step
+  float throughput = (segmentsAckedSum * m_tcb->m_segmentSize) / m_timeStep.GetSeconds();
+  box->AddValue(throughput);
+
+  // TODO: Reward logic will be added in next commit
+
+  NS_LOG_INFO ("MyGetObservation: " << box);
+
+  // Clear accumulators for the next time step
+  m_bytesInFlight.clear();
+  m_segmentsAcked.clear();
+
+  m_rttSampleNum = 0;
+  m_rttSum = MicroSeconds (0.0);
+
+  m_interTxTimeNum = 0;
+  m_interTxTimeSum = MicroSeconds (0.0);
+
+  m_interRxTimeNum = 0;
+  m_interRxTimeSum = MicroSeconds (0.0);
+  
+  return box;
+}
+
+/*
+ * TxPktTrace — track inter-packet transmission timing.
+ * Computes the time difference between consecutive transmitted packets
+ * and accumulates the sum and count for averaging.
+ */
+void
+TcpTimeStepGymEnv::TxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>)
+{
+  NS_LOG_FUNCTION (this);
+  if ( m_lastPktTxTime > MicroSeconds(0.0) ) {
+    Time interTxTime = Simulator::Now() - m_lastPktTxTime;
+    m_interTxTimeSum += interTxTime;
+    m_interTxTimeNum++;
+  }
+
+  m_lastPktTxTime = Simulator::Now();
+}
+
+/*
+ * RxPktTrace — track inter-packet reception timing.
+ * Computes the time difference between consecutive received packets
+ * and accumulates the sum and count for averaging.
+ */
+void
+TcpTimeStepGymEnv::RxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>)
+{
+  NS_LOG_FUNCTION (this);
+  if ( m_lastPktRxTime > MicroSeconds(0.0) ) {
+    Time interRxTime = Simulator::Now() - m_lastPktRxTime;
+    m_interRxTimeSum +=  interRxTime;
+    m_interRxTimeNum++;
+  }
+
+  m_lastPktRxTime = Simulator::Now();
+}
+
+
 } // namespace ns3

@@ -158,6 +158,81 @@ private:
 };
 
 
+/**
+ * @class TcpTimeStepGymEnv
+ * @brief Timestep-based TCP environment with periodic observations.
+ *
+ * Instead of firing per-event, this subclass collects TCP statistics
+ * over a fixed time window and notifies the agent periodically.
+ * The observation space has 16 parameters that include aggregated
+ * metrics (sum/avg bytesInFlight, sum/avg segmentsAcked, avg RTT,
+ * min RTT, avg inter-packet Tx/Rx times, and throughput).
+ */
+class TcpTimeStepGymEnv : public TcpGymEnv
+{
+public:
+  TcpTimeStepGymEnv ();
+
+  virtual ~TcpTimeStepGymEnv ();
+  static TypeId GetTypeId (void);
+  virtual void DoDispose ();
+
+  void SetDuration(Time value);
+  void SetTimeStep(Time value);
+  void SetReward(float value);
+  void SetPenalty(float value);
+
+  // OpenGym interface
+  virtual Ptr<OpenGymSpace> GetObservationSpace();
+  Ptr<OpenGymDataContainer> GetObservation();
+
+  // Packet trace callbacks for computing inter-packet timing
+  virtual void TxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>);
+  virtual void RxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const TcpSocketBase>);
+
+  // TCP congestion control callbacks
+  virtual uint32_t GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight);
+  virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
+  virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt);
+  virtual void CongestionStateSet (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCongState_t newState);
+  virtual void CwndEvent (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event);
+
+private:
+  void ScheduleNextStateRead();   ///< Schedule periodic Notify calls
+  bool m_started {false};         ///< Whether the first observation has been sent
+  Time m_duration;                ///< Total simulation duration
+  Time m_timeStep;                ///< Interval between observations
+
+  // Instantaneous TCP state
+  Ptr<const TcpSocketState> m_tcb;
+  std::vector<uint32_t> m_bytesInFlight;    ///< Accumulated bytesInFlight samples
+  std::vector<uint32_t> m_segmentsAcked;    ///< Accumulated segmentsAcked samples
+
+  // RTT accumulator
+  uint64_t m_rttSampleNum {0};
+  Time m_rttSum {MicroSeconds (0.0)};
+
+  // Inter-packet timing accumulators
+  Time m_lastPktTxTime {MicroSeconds(0.0)};
+  Time m_lastPktRxTime {MicroSeconds(0.0)};
+  uint64_t m_interTxTimeNum {0};
+  Time m_interTxTimeSum {MicroSeconds (0.0)};
+  uint64_t m_interRxTimeNum {0};
+  Time m_interRxTimeSum {MicroSeconds (0.0)};
+
+  // Running average RTT tracking (for reward computation)
+  Time m_prevAvgRtt {MicroSeconds (0.0)};
+  Time m_totalAvgRttSum {MicroSeconds (0.0)};
+  uint64_t m_totalAvgRttNum {0};
+  uint32_t m_old_cWnd {0};      ///< Previous cWnd for detecting changes
+
+  // Reward and penalty values
+  float m_reward;
+  float m_penalty;
+};
+
+
+
 } // namespace ns3
 
 #endif /* TCP_RL_ENV_H */
