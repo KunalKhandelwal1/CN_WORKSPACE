@@ -22,11 +22,22 @@ public:
 
   void ConnectSocketCallbacks ();
 
+  // TcpCongestionOps methods
+  virtual uint32_t GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight) override;
+  virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked) override;
+  virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt) override;
+  virtual void CongestionStateSet (Ptr<TcpSocketState> tcb, TcpSocketState::TcpCongState_t newState) override;
+  virtual void CwndEvent (Ptr<TcpSocketState> tcb, TcpSocketState::TcpCAEvent_t event) override;
+  
+  virtual Ptr<TcpCongestionOps> Fork () override;
+
 protected:
   static uint32_t m_uuidGenerator;
   uint32_t m_uuid;
   Ptr<TcpSocketBase> m_socket;
   Ptr<TcpGymEnv> m_env;
+
+  virtual void CreateGymEnv () = 0;
 
   void TxTrace (Ptr<const Packet> p, const TcpHeader& h, Ptr<const TcpSocketBase> socket);
   void RxTrace (Ptr<const Packet> p, const TcpHeader& h, Ptr<const TcpSocketBase> socket);

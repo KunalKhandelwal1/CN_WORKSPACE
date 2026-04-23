@@ -49,6 +49,62 @@ TcpRlBase::~TcpRlBase ()
 {
 }
 
+uint32_t
+TcpRlBase::GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight)
+{
+  if (!m_env)
+    {
+      CreateGymEnv ();
+    }
+  return m_env->GetSsThresh (tcb, bytesInFlight);
+}
+
+void
+TcpRlBase::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
+{
+  if (!m_env)
+    {
+      CreateGymEnv ();
+    }
+  m_env->IncreaseWindow (tcb, segmentsAcked);
+}
+
+void
+TcpRlBase::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt)
+{
+  if (!m_env)
+    {
+      CreateGymEnv ();
+    }
+  m_env->PktsAcked (tcb, segmentsAcked, rtt);
+}
+
+void
+TcpRlBase::CongestionStateSet (Ptr<TcpSocketState> tcb, TcpSocketState::TcpCongState_t newState)
+{
+  if (!m_env)
+    {
+      CreateGymEnv ();
+    }
+  m_env->CongestionStateSet (tcb, newState);
+}
+
+void
+TcpRlBase::CwndEvent (Ptr<TcpSocketState> tcb, TcpSocketState::TcpCAEvent_t event)
+{
+  if (!m_env)
+    {
+      CreateGymEnv ();
+    }
+  m_env->CwndEvent (tcb, event);
+}
+
+Ptr<TcpCongestionOps>
+TcpRlBase::Fork ()
+{
+  return CopyObject<TcpRlBase> (this);
+}
+
 void
 TcpRlBase::TxTrace (Ptr<const Packet> p, const TcpHeader& h, Ptr<const TcpSocketBase> socket)
 {
@@ -71,7 +127,6 @@ TcpRlBase::ConnectSocketCallbacks ()
       if (tcp != nullptr)
         {
           // Iterates all nodes/sockets to find the one using this CA instance
-          // Implementation is simplified for this project
         }
     }
 }
