@@ -172,7 +172,90 @@ main (int argc, char *argv[])
       NS_LOG_UNCOND ("--openGymPort: No OpenGym (baseline algorithm)");
     }
 
-  // TODO: OpenGym interface, TCP config, topology, FlowMonitor
+  // ========================================================================
+  // OpenGym interface and TCP configuration
+  // ========================================================================
+
+  // Create the OpenGym interface (must be created before anything else)
+  Ptr<OpenGymInterface> openGymInterface;
+
+  if (transport_prot.compare ("ns3::TcpRl") == 0)
+    {
+      openGymInterface = OpenGymInterface::Get (openGymPort);
+      // Configure event-based RL agent parameters
+      Config::SetDefault ("ns3::TcpRl::Reward", DoubleValue (2.0));
+      Config::SetDefault ("ns3::TcpRl::Penalty", DoubleValue (-30.0));
+    }
+
+  if (transport_prot.compare ("ns3::TcpRlTimeBased") == 0)
+    {
+      openGymInterface = OpenGymInterface::Get (openGymPort);
+      // Configure timestep-based RL agent parameters
+      Config::SetDefault ("ns3::TcpRlTimeBased::StepTime", TimeValue (Seconds (tcpEnvTimeStep)));
+      Config::SetDefault ("ns3::TcpRlTimeBased::Duration", TimeValue (Seconds (duration)));
+      Config::SetDefault ("ns3::TcpRlTimeBased::Reward", DoubleValue (rew));
+      Config::SetDefault ("ns3::TcpRlTimeBased::Penalty", DoubleValue (pen));
+    }
+
+  // Calculate the Application Data Unit (ADU) size
+  // ADU = MTU - 20 bytes (extra) - IP header - TCP header
+  Header* temp_header = new Ipv4Header ();
+  uint32_t ip_header = temp_header->GetSerializedSize ();
+  NS_LOG_LOGIC ("IP Header size is: " << ip_header);
+  delete temp_header;
+
+  temp_header = new TcpHeader ();
+  uint32_t tcp_header = temp_header->GetSerializedSize ();
+  NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
+  delete temp_header;
+
+  uint32_t tcp_adu_size = mtu_bytes - 20 - (ip_header + tcp_header);
+  NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
+
+  // Set simulation start and stop times
+  double start_time = 0.1;
+  double stop_time = start_time + duration;
+
+  // Configure TCP socket parameters
+  // 4 MB send and receive buffers (1 << 22 = 4194304 bytes)
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1 << 22));
+  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1 << 22));
+
+  // Enable SACK (Selective Acknowledgment)
+  Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (sack));
+
+  // Delayed ACK count: send ACK after every 2 packets
+  Config::SetDefault ("ns3::TcpSocket::DelAckCount", UintegerValue (2));
+
+  // Set TCP recovery algorithm to classic recovery
+  Config::SetDefault ("ns3::TcpL4Protocol::RecoveryType",
+                      TypeIdValue (TypeId::LookupByName (recovery)));
+
+  // Select the TCP congestion control variant
+  if (transport_prot.compare ("ns3::TcpWestwoodPlus") == 0)
+    {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                          TypeIdValue (TcpWestwood::GetTypeId ()));
+      Config::SetDefault ("ns3::TcpWestwood::ProtocolType",
+                          EnumValue (TcpWestwood::WESTWOODPLUS));
+    }
+  else
+    {
+      TypeId tcpTid;
+      NS_ABORT_MSG_UNLESS (TypeId::LookupByNameFailSafe (transport_prot, &tcpTid),
+                           "TypeId " << transport_prot << " not found");
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                          TypeIdValue (TypeId::LookupByName (transport_prot)));
+    }
+
+  // TODO: Build topology, install applications, add FlowMonitor
+
+  // Notify OpenGym interface that simulation has ended
+  if (transport_prot.compare ("ns3::TcpRl") == 0 ||
+      transport_prot.compare ("ns3::TcpRlTimeBased") == 0)
+    {
+      openGymInterface->NotifySimulationEnd ();
+    }
 
   Simulator::Destroy ();
   return 0;
