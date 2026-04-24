@@ -43,6 +43,23 @@ protected:
   void RxTrace (Ptr<const Packet> p, const TcpHeader& h, Ptr<const TcpSocketBase> socket);
 };
 
+class TcpRl : public TcpRlBase {
+public:
+  static TypeId GetTypeId (void);
+  TcpRl ();
+  virtual ~TcpRl ();
+
+  virtual std::string GetName () const override;
+  virtual Ptr<TcpCongestionOps> Fork () override;
+
+protected:
+  virtual void CreateGymEnv () override;
+
+private:
+  double m_reward;
+  double m_penalty;
+};
+
 } // namespace ns3
 
 #endif // TCP_RL_H

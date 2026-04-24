@@ -3,6 +3,7 @@
 #include "ns3/node-list.h"
 #include "ns3/tcp-l4-protocol.h"
 #include "ns3/simulator.h"
+#include "ns3/double.h"
 
 namespace ns3 {
 
@@ -129,6 +130,63 @@ TcpRlBase::ConnectSocketCallbacks ()
           // Iterates all nodes/sockets to find the one using this CA instance
         }
     }
+}
+
+// --------------------------------------------------------------------------
+// TcpRl (Event-based)
+// --------------------------------------------------------------------------
+
+NS_OBJECT_ENSURE_REGISTERED (TcpRl);
+
+TypeId
+TcpRl::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::TcpRl")
+    .SetParent<TcpRlBase> ()
+    .SetGroupName ("Internet")
+    .AddConstructor<TcpRl> ()
+    .AddAttribute ("Reward",
+                   "Reward value",
+                   DoubleValue (1.0),
+                   MakeDoubleAccessor (&TcpRl::m_reward),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Penalty",
+                   "Penalty value",
+                   DoubleValue (-10.0),
+                   MakeDoubleAccessor (&TcpRl::m_penalty),
+                   MakeDoubleChecker<double> ());
+  return tid;
+}
+
+TcpRl::TcpRl ()
+{
+}
+
+TcpRl::~TcpRl ()
+{
+}
+
+std::string
+TcpRl::GetName () const
+{
+  return "TcpRl";
+}
+
+void
+TcpRl::CreateGymEnv ()
+{
+  Ptr<TcpEventGymEnv> env = CreateObject<TcpEventGymEnv> ();
+  env->SetUuid (m_uuid);
+  env->SetReward (m_reward);
+  env->SetPenalty (m_penalty);
+  m_env = env;
+  ConnectSocketCallbacks ();
+}
+
+Ptr<TcpCongestionOps>
+TcpRl::Fork ()
+{
+  return CopyObject<TcpRl> (this);
 }
 
 } // namespace ns3
