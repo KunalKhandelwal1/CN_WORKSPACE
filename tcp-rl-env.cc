@@ -647,7 +647,35 @@ TcpTimeStepGymEnv::GetObservation()
   float throughput = (segmentsAckedSum * m_tcb->m_segmentSize) / m_timeStep.GetSeconds();
   box->AddValue(throughput);
 
-  // TODO: Reward logic will be added in next commit
+
+  /*
+   * Reward Logic:
+   *   - If the agent increased cWnd AND the running average RTT
+   *     is >= current avgRtt (i.e., RTT dropped) → positive reward
+   *   - If the agent increased cWnd but RTT got worse → penalty
+   *   - If cWnd was unchanged → zero reward (neutral)
+   */
+  if (m_new_cWnd > m_old_cWnd && m_totalAvgRttSum.GetSeconds() > 0 && avgRtt.GetSeconds() > 0)  {
+    // Agent chose to increase the congestion window
+    if ((m_totalAvgRttSum / m_totalAvgRttNum) >= avgRtt)  {
+      // Average RTT decreased — good decision, reward the agent
+      m_envReward = m_reward;
+    } else {
+      // Average RTT increased — penalize the agent
+      m_envReward = m_penalty;
+    }
+  } else  {
+    // cWnd was not increased — no reward or penalty
+    m_envReward = 0;
+  }
+
+  // Update running average RTT for comparison in future steps
+  m_totalAvgRttSum += avgRtt;
+  m_totalAvgRttNum++;
+
+  // Track the previous cWnd to detect changes next step
+  m_old_cWnd = m_new_cWnd;
+
 
   NS_LOG_INFO ("MyGetObservation: " << box);
 
@@ -703,5 +731,91 @@ TcpTimeStepGymEnv::RxPktTrace(Ptr<const Packet>, const TcpHeader&, Ptr<const Tcp
   m_lastPktRxTime = Simulator::Now();
 }
 
+/*
+ * GetSsThresh — called on packet loss detection.
+ * Stores the TCP control block and bytesInFlight, then triggers
+ * the first Notify + ScheduleNextStateRead on the initial call.
+ * Returns the agent's chosen ssThresh value.
+ */
+uint32_t
+TcpTimeStepGymEnv::GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight)
+{
+  NS_LOG_FUNCTION (this);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " GetSsThresh, BytesInFlight: " << bytesInFlight);
+  m_tcb = tcb;
+  m_bytesInFlight.push_back(bytesInFlight);
+
+  if (!m_started) {
+    m_started = true;
+    Notify();
+    ScheduleNextStateRead();
+  }
+
+  // action
+  return m_new_ssThresh;
+}
+
+/*
+ * IncreaseWindow — called on ACK receipt.
+ * Stores the TCP control block and accumulated stats, then triggers
+ * the first Notify + ScheduleNextStateRead on the initial call.
+ * Applies the agent's chosen cWnd value to the socket.
+ */
+void
+TcpTimeStepGymEnv::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
+{
+  NS_LOG_FUNCTION (this);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " IncreaseWindow, SegmentsAcked: " << segmentsAcked);
+  m_tcb = tcb;
+  m_segmentsAcked.push_back(segmentsAcked);
+  m_bytesInFlight.push_back(tcb->m_bytesInFlight);
+
+  if (!m_started) {
+    m_started = true;
+    Notify();
+    ScheduleNextStateRead();
+  }
+  // action
+  tcb->m_cWnd = m_new_cWnd;
+}
+
+/*
+ * PktsAcked — accumulate RTT samples from acknowledged packets.
+ * These samples are averaged in GetObservation() at each time step.
+ */
+void
+TcpTimeStepGymEnv::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time& rtt)
+{
+  NS_LOG_FUNCTION (this);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " PktsAcked, SegmentsAcked: " << segmentsAcked << " Rtt: " << rtt);
+  m_tcb = tcb;
+  m_rttSum += rtt;
+  m_rttSampleNum++;
+}
+
+/*
+ * CongestionStateSet — log the TCP congestion state transition.
+ * Stores the TCB reference for observation but does not trigger Notify.
+ */
+void
+TcpTimeStepGymEnv::CongestionStateSet (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCongState_t newState)
+{
+  NS_LOG_FUNCTION (this);
+  std::string stateName = GetTcpCongStateName(newState);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " CongestionStateSet: " << newState << " " << stateName);
+  m_tcb = tcb;
+}
+
+/*
+ * CwndEvent — log the congestion window event.
+ * Does not trigger Notify; used only for diagnostic logging.
+ */
+void
+TcpTimeStepGymEnv::CwndEvent (Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event)
+{
+  NS_LOG_FUNCTION (this);
+  std::string eventName = GetTcpCAEventName(event);
+  NS_LOG_INFO(Simulator::Now() << " Node: " << m_nodeId << " CwndEvent: " << event << " " << eventName);
+}
 
 } // namespace ns3
