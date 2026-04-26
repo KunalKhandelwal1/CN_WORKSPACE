@@ -4,6 +4,7 @@
 #include "ns3/tcp-l4-protocol.h"
 #include "ns3/simulator.h"
 #include "ns3/double.h"
+#include "ns3/time.h"
 
 namespace ns3 {
 
@@ -187,6 +188,75 @@ Ptr<TcpCongestionOps>
 TcpRl::Fork ()
 {
   return CopyObject<TcpRl> (this);
+}
+
+// --------------------------------------------------------------------------
+// TcpRlTimeBased (Timestep-based)
+// --------------------------------------------------------------------------
+
+NS_OBJECT_ENSURE_REGISTERED (TcpRlTimeBased);
+
+TypeId
+TcpRlTimeBased::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::TcpRlTimeBased")
+    .SetParent<TcpRlBase> ()
+    .SetGroupName ("Internet")
+    .AddConstructor<TcpRlTimeBased> ()
+    .AddAttribute ("Duration",
+                   "Duration of the environment",
+                   TimeValue (Seconds (10.0)),
+                   MakeTimeAccessor (&TcpRlTimeBased::m_duration),
+                   MakeTimeChecker ())
+    .AddAttribute ("StepTime",
+                   "Step time of the environment",
+                   TimeValue (MilliSeconds (100.0)),
+                   MakeTimeAccessor (&TcpRlTimeBased::m_stepTime),
+                   MakeTimeChecker ())
+    .AddAttribute ("Reward",
+                   "Reward value",
+                   DoubleValue (1.0),
+                   MakeDoubleAccessor (&TcpRlTimeBased::m_reward),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Penalty",
+                   "Penalty value",
+                   DoubleValue (-1.0),
+                   MakeDoubleAccessor (&TcpRlTimeBased::m_penalty),
+                   MakeDoubleChecker<double> ());
+  return tid;
+}
+
+TcpRlTimeBased::TcpRlTimeBased ()
+{
+}
+
+TcpRlTimeBased::~TcpRlTimeBased ()
+{
+}
+
+std::string
+TcpRlTimeBased::GetName () const
+{
+  return "TcpRlTimeBased";
+}
+
+void
+TcpRlTimeBased::CreateGymEnv ()
+{
+  Ptr<TcpTimeStepGymEnv> env = CreateObject<TcpTimeStepGymEnv> ();
+  env->SetUuid (m_uuid);
+  env->SetDuration (m_duration);
+  env->SetStepTime (m_stepTime);
+  env->SetReward (m_reward);
+  env->SetPenalty (m_penalty);
+  m_env = env;
+  ConnectSocketCallbacks ();
+}
+
+Ptr<TcpCongestionOps>
+TcpRlTimeBased::Fork ()
+{
+  return CopyObject<TcpRlTimeBased> (this);
 }
 
 } // namespace ns3
