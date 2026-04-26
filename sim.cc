@@ -248,7 +248,121 @@ main (int argc, char *argv[])
                           TypeIdValue (TypeId::LookupByName (transport_prot)));
     }
 
-  // TODO: Build topology, install applications, add FlowMonitor
+  // ========================================================================
+  // Dumbbell topology and applications
+  // ========================================================================
+
+  // Configure the error model (rate-based, packet unit)
+  Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+  uv->SetStream (50);
+  RateErrorModel error_model;
+  error_model.SetRandomVariable (uv);
+  error_model.SetUnit (RateErrorModel::ERROR_UNIT_PACKET);
+  error_model.SetRate (0.0);
+
+  // Create point-to-point link helpers for bottleneck and access links
+  PointToPointHelper bottleNeckLink;
+  bottleNeckLink.SetDeviceAttribute ("DataRate", StringValue (bottleneck_bandwidth));
+  bottleNeckLink.SetChannelAttribute ("Delay", StringValue (bottleneck_delay));
+
+  PointToPointHelper pointToPointLeaf;
+  pointToPointLeaf.SetDeviceAttribute ("DataRate", StringValue (access_bandwidth));
+  pointToPointLeaf.SetChannelAttribute ("Delay", StringValue (access_delay));
+
+  // Create the dumbbell topology
+  PointToPointDumbbellHelper d (nLeaf, pointToPointLeaf,
+                                nLeaf, pointToPointLeaf,
+                                bottleNeckLink);
+
+  // Install internet stack on all nodes
+  InternetStackHelper stack;
+  stack.InstallAll ();
+
+  // Configure traffic control with PfifoFast queue discipline
+  // Queue size is set based on the Bandwidth-Delay Product (BDP)
+  TrafficControlHelper tchPfifo;
+  tchPfifo.SetRootQueueDisc ("ns3::PfifoFastQueueDisc");
+
+  DataRate access_b (access_bandwidth);
+  DataRate bottle_b (bottleneck_bandwidth);
+  Time access_d (access_delay);
+  Time bottle_d (bottleneck_delay);
+
+  // Calculate BDP-based queue size (in packets)
+  uint32_t bdp_size = static_cast<uint32_t> (
+    (std::min (access_b, bottle_b).GetBitRate () / 8) *
+    ((access_d + bottle_d + access_d) * 2).GetSeconds ());
+
+  Config::SetDefault ("ns3::PfifoFastQueueDisc::MaxSize",
+                      QueueSizeValue (QueueSize (QueueSizeUnit::PACKETS,
+                                                 bdp_size / mtu_bytes)));
+
+  // Install queue discipline on router devices
+  tchPfifo.Install (d.GetLeft ()->GetDevice (1));
+  tchPfifo.Install (d.GetRight ()->GetDevice (1));
+
+  // Assign IP addresses to all interfaces
+  // Left side:  10.1.1.0/24
+  // Right side: 10.2.1.0/24
+  // Bottleneck: 10.3.1.0/24
+  d.AssignIpv4Addresses (Ipv4AddressHelper ("10.1.1.0", "255.255.255.0"),
+                         Ipv4AddressHelper ("10.2.1.0", "255.255.255.0"),
+                         Ipv4AddressHelper ("10.3.1.0", "255.255.255.0"));
+
+  // Set up global routing tables
+  NS_LOG_INFO ("Initialize Global Routing.");
+  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+  // Install PacketSink applications on receiver (right) nodes
+  uint16_t port = 50000;
+  Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
+  PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
+  ApplicationContainer sinkApps;
+
+  for (uint32_t i = 0; i < d.RightCount (); ++i)
+    {
+      sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
+      sinkApps.Add (sinkHelper.Install (d.GetRight (i)));
+    }
+  sinkApps.Start (Seconds (0.0));
+  sinkApps.Stop (Seconds (stop_time));
+
+  // Install BulkSend applications on sender (left) nodes
+  for (uint32_t i = 0; i < d.LeftCount (); ++i)
+    {
+      AddressValue remoteAddress (InetSocketAddress (d.GetRightIpv4Address (i), port));
+      Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
+
+      BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
+      ftp.SetAttribute ("Remote", remoteAddress);
+      ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
+      ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
+
+      ApplicationContainer clientApp = ftp.Install (d.GetLeft (i));
+      clientApp.Start (Seconds (start_time * i));
+      clientApp.Stop (Seconds (stop_time - 3));
+    }
+
+  // Count received packets at sink nodes
+  for (uint32_t i = 0; i < d.RightCount (); ++i)
+    {
+      rxPkts.push_back (0);
+      Ptr<PacketSink> pktSink = DynamicCast<PacketSink> (sinkApps.Get (i));
+      pktSink->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&CountRxPkts, i));
+    }
+
+  // Run the simulation
+  Simulator::Stop (Seconds (stop_time));
+  NS_LOG_UNCOND ("=== Starting Simulation ===");
+  Simulator::Run ();
+
+  // Print received packet counts per sink
+  NS_LOG_UNCOND ("=== Simulation Complete ===");
+  NS_LOG_UNCOND ("Received packet counts:");
+  for (uint32_t i = 0; i < rxPkts.size (); i++)
+    {
+      NS_LOG_UNCOND ("  Sink " << i << ": " << rxPkts[i] << " packets");
+    }
 
   // Notify OpenGym interface that simulation has ended
   if (transport_prot.compare ("ns3::TcpRl") == 0 ||
@@ -257,6 +371,7 @@ main (int argc, char *argv[])
       openGymInterface->NotifySimulationEnd ();
     }
 
+  // Cleanup
   Simulator::Destroy ();
   return 0;
 }
