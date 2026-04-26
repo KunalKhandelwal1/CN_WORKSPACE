@@ -60,6 +60,25 @@ private:
   double m_penalty;
 };
 
+class TcpRlTimeBased : public TcpRlBase {
+public:
+  static TypeId GetTypeId (void);
+  TcpRlTimeBased ();
+  virtual ~TcpRlTimeBased ();
+
+  virtual std::string GetName () const override;
+  virtual Ptr<TcpCongestionOps> Fork () override;
+
+protected:
+  virtual void CreateGymEnv () override;
+
+private:
+  Time m_duration;
+  Time m_stepTime;
+  double m_reward;
+  double m_penalty;
+};
+
 } // namespace ns3
 
 #endif // TCP_RL_H
