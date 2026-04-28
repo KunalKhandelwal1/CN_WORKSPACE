@@ -43,6 +43,10 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("DrlTcpSimulation");
 
+// ============================================================================
+// Commit 1 — Simulation skeleton with CLI
+// ============================================================================
+
 // Global packet counter vector for tracking received packets per sink
 static std::vector<uint32_t> rxPkts;
 
@@ -76,6 +80,138 @@ struct PerformanceMetrics
 static std::vector<PerformanceMetrics> g_metricsHistory;
 
 // ============================================================================
+// Commit 4 — FlowMonitor metrics collection and file output
+// ============================================================================
+
+// Static map to store previous flow stats for computing per-interval deltas
+static std::map<FlowId, FlowMonitor::FlowStats> g_previousFlowStats;
+
+// Pointer to the flow monitor (set in main)
+static Ptr<FlowMonitor> g_flowMonitor;
+static Ptr<Ipv4FlowClassifier> g_classifier;
+
+/**
+ * Collect performance metrics from FlowMonitor at regular intervals
+ * Uses delta computation to derive per-interval throughput, RTT, and loss
+ */
+static void
+CollectMetrics ()
+{
+  // Get current flow statistics
+  std::map<FlowId, FlowMonitor::FlowStats> stats = g_flowMonitor->GetFlowStats ();
+
+  double totalThroughput = 0.0;
+  double totalRtt = 0.0;
+  uint32_t rttCount = 0;
+  double totalLoss = 0.0;
+  double totalTxPackets = 0.0;
+  double totalRxPackets = 0.0;
+  double totalTxBytes = 0.0;
+  double totalRxBytes = 0.0;
+
+  for (auto it = stats.begin (); it != stats.end (); ++it)
+    {
+      FlowId flowId = it->first;
+      FlowMonitor::FlowStats current = it->second;
+
+      // Compute deltas from previous measurement
+      uint64_t deltaBytes = current.rxBytes;
+      uint32_t deltaTxPackets = current.txPackets;
+      uint32_t deltaRxPackets = current.rxPackets;
+      uint32_t deltaLostPackets = current.lostPackets;
+      Time deltaDelay = current.delaySum;
+      uint32_t deltaDelayCount = current.rxPackets;
+
+      if (g_previousFlowStats.find (flowId) != g_previousFlowStats.end ())
+        {
+          FlowMonitor::FlowStats prev = g_previousFlowStats[flowId];
+          deltaBytes = current.rxBytes - prev.rxBytes;
+          deltaTxPackets = current.txPackets - prev.txPackets;
+          deltaRxPackets = current.rxPackets - prev.rxPackets;
+          deltaLostPackets = current.lostPackets - prev.lostPackets;
+          deltaDelay = current.delaySum - prev.delaySum;
+          deltaDelayCount = current.rxPackets - prev.rxPackets;
+        }
+
+      // Accumulate throughput (convert bytes to bits)
+      double intervalThroughput = (deltaBytes * 8.0) / 0.1; // bits per second (0.1s interval)
+      totalThroughput += intervalThroughput;
+
+      // Accumulate RTT
+      if (deltaDelayCount > 0)
+        {
+          double avgFlowRtt = deltaDelay.GetSeconds () / deltaDelayCount;
+          totalRtt += avgFlowRtt;
+          rttCount++;
+        }
+
+      // Accumulate packet loss
+      totalLoss += deltaLostPackets;
+      totalTxPackets += deltaTxPackets;
+      totalRxPackets += deltaRxPackets;
+      totalTxBytes += (current.txBytes - (g_previousFlowStats.count (flowId) ? g_previousFlowStats[flowId].txBytes : 0));
+      totalRxBytes += deltaBytes;
+
+      // Update previous stats
+      g_previousFlowStats[flowId] = current;
+    }
+
+  // Compute aggregate metrics
+  PerformanceMetrics m;
+  m.time = Simulator::Now ().GetSeconds ();
+  m.throughput = totalThroughput;
+  m.avgRtt = (rttCount > 0) ? (totalRtt / rttCount) : 0.0;
+  m.packetLoss = totalLoss;
+
+  // NEP: Network Efficiency Parameter (tx/rx packet ratio, ideal = 1.0)
+  m.nep = (totalRxPackets > 0) ? (totalTxPackets / totalRxPackets) : 0.0;
+
+  // WBI: Waste Bandwidth Index (fraction of bytes wasted)
+  m.wbi = (totalTxBytes > 0) ? ((totalTxBytes - totalRxBytes) / totalTxBytes) : 0.0;
+
+  g_metricsHistory.push_back (m);
+
+  // Schedule next collection in 0.1 seconds
+  Simulator::Schedule (Seconds (0.1), &CollectMetrics);
+}
+
+/**
+ * Save collected metrics to CSV files for post-processing analysis
+ * Output format: Time,Throughput,AvgRTT,PacketLoss,NEP,WBI
+ * @param filename Base filename for the output CSV
+ */
+static void
+SaveMetricsToFiles (const std::string &filename)
+{
+  std::ofstream outFile (filename);
+  if (!outFile.is_open ())
+    {
+      NS_LOG_ERROR ("Could not open file: " << filename);
+      return;
+    }
+
+  // Write CSV header
+  outFile << "Time,Throughput,AvgRTT,PacketLoss,NEP,WBI" << std::endl;
+
+  // Write each metric entry
+  for (size_t i = 0; i < g_metricsHistory.size (); i++)
+    {
+      const PerformanceMetrics &m = g_metricsHistory[i];
+      outFile << std::fixed << std::setprecision (4)
+              << m.time << ","
+              << m.throughput << ","
+              << m.avgRtt << ","
+              << m.packetLoss << ","
+              << m.nep << ","
+              << m.wbi
+              << std::endl;
+    }
+
+  outFile.close ();
+  NS_LOG_UNCOND ("Metrics saved to: " << filename);
+}
+
+// ============================================================================
 // Main simulation function
 // ============================================================================
 
@@ -83,7 +219,7 @@ int
 main (int argc, char *argv[])
 {
   // ========================================================================
-  // Simulation parameters
+  // Commit 1 — Declare all simulation parameters
   // ========================================================================
 
   // OpenGym interface parameters
@@ -173,7 +309,7 @@ main (int argc, char *argv[])
     }
 
   // ========================================================================
-  // OpenGym interface and TCP configuration
+  // Commit 2 — OpenGym interface and TCP configuration
   // ========================================================================
 
   // Create the OpenGym interface (must be created before anything else)
@@ -249,7 +385,7 @@ main (int argc, char *argv[])
     }
 
   // ========================================================================
-  // Dumbbell topology and applications
+  // Commit 3 — Dumbbell topology and applications
   // ========================================================================
 
   // Configure the error model (rate-based, packet unit)
@@ -343,6 +479,17 @@ main (int argc, char *argv[])
       clientApp.Stop (Seconds (stop_time - 3));
     }
 
+  // ========================================================================
+  // Commit 4 — FlowMonitor metrics and file output
+  // ========================================================================
+
+  // Install FlowMonitor on all nodes for performance measurement
+  FlowMonitorHelper flowHelper;
+  g_flowMonitor = flowHelper.InstallAll ();
+
+  // Get the flow classifier for flow identification
+  g_classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
+
   // Count received packets at sink nodes
   for (uint32_t i = 0; i < d.RightCount (); ++i)
     {
@@ -351,10 +498,36 @@ main (int argc, char *argv[])
       pktSink->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&CountRxPkts, i));
     }
 
+  // Schedule periodic metric collection every 0.1 seconds
+  Simulator::Schedule (Seconds (start_time + 0.1), &CollectMetrics);
+
   // Run the simulation
   Simulator::Stop (Seconds (stop_time));
   NS_LOG_UNCOND ("=== Starting Simulation ===");
   Simulator::Run ();
+
+  // Determine output filename based on transport protocol
+  std::string resultFileName;
+  if (transport_prot.compare ("ns3::TcpRlTimeBased") == 0 ||
+      transport_prot.compare ("ns3::TcpRl") == 0)
+    {
+      resultFileName = resultFilePath + "/results_rl.txt";
+    }
+  else if (transport_prot.compare ("ns3::TcpCubic") == 0)
+    {
+      resultFileName = resultFilePath + "/results_cubic.txt";
+    }
+  else if (transport_prot.compare ("ns3::TcpNewReno") == 0)
+    {
+      resultFileName = resultFilePath + "/results_newreno.txt";
+    }
+  else
+    {
+      resultFileName = resultFilePath + "/results_other.txt";
+    }
+
+  // Save collected metrics to CSV file
+  SaveMetricsToFiles (resultFileName);
 
   // Print received packet counts per sink
   NS_LOG_UNCOND ("=== Simulation Complete ===");
