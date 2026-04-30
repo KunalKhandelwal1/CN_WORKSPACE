@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Parse NS-3 TCP simulation metrics and generate comparison plots."""
+"\""Parse NS-3 TCP simulation metrics and generate comparison plots."\""
 
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 from scipy import stats
 
 BASE_PATH = os.path.abspath('.')
@@ -11,6 +12,7 @@ RESULT_FILES = {
     'Cubic': os.path.join(BASE_PATH, 'results_cubic.txt'),
     'NewReno': os.path.join(BASE_PATH, 'results_newreno.txt'),
 }
+
 
 def parse_metrics(filename):
     if not os.path.exists(filename):
@@ -23,6 +25,7 @@ def parse_metrics(filename):
     if 'AvgRTT' in df.columns:
         df['AvgRTT_ms'] = df['AvgRTT'] * 1000.0
     return df
+
 
 def compare_baseline(baseline, target, label):
     baseline_mean_throughput = baseline['Throughput_Mbps'].mean()
@@ -39,6 +42,47 @@ def compare_baseline(baseline, target, label):
     print(f'  RTT change: {rtt_diff:.2f}%')
     print('')
 
+
+def plot_metrics(metrics, output_dir='graphs'):
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.figure(figsize=(10, 5))
+    for label, df in metrics.items():
+        if df is not None:
+            plt.plot(df['Time'], df['Throughput_Mbps'], label=label)
+    plt.title('Throughput Comparison')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Throughput (Mbps)')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(output_dir, 'throughput_comparison.png'))
+    plt.close()
+
+    plt.figure(figsize=(10, 5))
+    for label, df in metrics.items():
+        if df is not None:
+            plt.plot(df['Time'], df['AvgRTT_ms'], label=label)
+    plt.title('RTT Comparison')
+    plt.xlabel('Time (s)')
+    plt.ylabel('RTT (ms)')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(output_dir, 'rtt_comparison.png'))
+    plt.close()
+
+    plt.figure(figsize=(10, 5))
+    for label, df in metrics.items():
+        if df is not None and 'PacketLoss' in df.columns:
+            plt.plot(df['Time'], df['PacketLoss'].cumsum(), label=label)
+    plt.title('Cumulative Packet Loss')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Cumulative Packet Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(output_dir, 'packet_loss_comparison.png'))
+    plt.close()
+
+
 def main():
     metrics = {}
     for label, filename in RESULT_FILES.items():
@@ -52,6 +96,10 @@ def main():
         compare_baseline(metrics['Cubic'], metrics['DRL'], 'Cubic')
     if metrics['NewReno'] is not None:
         compare_baseline(metrics['NewReno'], metrics['DRL'], 'NewReno')
+
+    plot_metrics(metrics)
+    print('Graphs written to graphs/')
+
 
 if __name__ == '__main__':
     main()
