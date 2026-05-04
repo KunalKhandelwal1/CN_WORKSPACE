@@ -52,3 +52,4 @@ This project demonstrates a Deep Q-Network (DQN) agent controlling TCP congestio
 
 - **Dyfinitie** (<v08pandey@gmail.com>)
 - **tusharsaharan** (<tusharsaharan18@gmail.com>)
+- **tushar**
