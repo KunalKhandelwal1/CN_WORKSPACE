@@ -1,0 +1,29 @@
+# Build and run commands for DRL-TCP NS-3 project
+
+# Configure and build NS-3 with examples
+./waf configure --enable-examples --enable-tests
+./waf build
+
+# Run baseline TCP variants
+./waf --run "scratch/sim --transport_prot=TcpNewReno --duration=10"
+./waf --run "scratch/sim --transport_prot=TcpCubic --duration=10"
+
+# Run RL-based TCP variants
+./waf --run "scratch/sim --transport_prot=TcpRl --duration=10"
+./waf --run "scratch/sim --transport_prot=TcpRlTimeBased --duration=10 --envTimeStep=0.1"
+
+# Train the Python DQN agent
+python TCP-RL-Agent.py --mode train --iterations 100 --steps 1000
+
+# Evaluate and compare metrics
+python parse_metrics.py
+
+# Run FastAPI Backend (Port 8000)
+# cd backend/api
+# pip install fastapi uvicorn pandas
+# uvicorn server:app --reload
+
+# Run Next.js Frontend (Port 3000)
+# cd frontend
+# npm install
+# npm run dev
