@@ -1,101 +1,155 @@
-import Image from "next/image";
+'use client';
+import { motion } from 'framer-motion';
+import { useSpring, animated } from 'react-spring';
+import HeroAnimation from '@/components/HeroAnimation';
+import DQNBrainViz from '@/components/DQNBrainViz';
+import MetricCard from '@/components/MetricCard';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useEffect, useState } from 'react';
+import { getAllMetrics } from '@/lib/api';
+import { MetricPoint } from '@/lib/types';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [metrics, setMetrics] = useState<Record<string, MetricPoint[]>>({});
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    getAllMetrics().then(setMetrics);
+  }, []);
+
+  const rttSpring = useSpring({ from: { val: 0 }, to: { val: 46.3 }, config: { duration: 1500 } });
+  const lossSpring = useSpring({ from: { val: 100 }, to: { val: 0 }, config: { duration: 1500 } });
+  const stepsSpring = useSpring({ from: { val: 0 }, to: { val: 100 }, config: { duration: 1500 } });
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
+
+  const headingWords = ["TCP", "Congestion", "Control", "powered", "by", "Deep", "RL"];
+
+  return (
+    <main className="flex flex-col gap-12">
+      {/* Hero Section */}
+      <section className="relative pt-10">
+        <div className="text-center mb-12">
+          <motion.h1 
+            className="text-5xl md:text-7xl font-bold mb-6 tracking-tight flex flex-wrap justify-center gap-x-4"
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {headingWords.slice(0, 3).map((word, i) => (
+              <motion.span key={i} variants={itemVariants}>{word}</motion.span>
+            ))}
+            <div className="w-full h-0" />
+            {headingWords.slice(3).map((word, i) => (
+              <motion.span key={i+3} variants={itemVariants} className="bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-500">
+                {word}
+              </motion.span>
+            ))}
+          </motion.h1>
+
+          <div className="flex justify-center gap-8 text-sm md:text-base text-gray-400 font-mono">
+            <div className="flex items-center gap-2">
+              <span className="text-success text-xl">↓</span>
+              <animated.span>{rttSpring.val.to(val => val.toFixed(1))}</animated.span>% RTT reduction
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-success text-xl">≈</span>
+              <animated.span>{lossSpring.val.to(val => val.toFixed(0))}</animated.span>% packet loss
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-accent text-xl">↑</span>
+              <animated.span>{stepsSpring.val.to(val => val.toFixed(0))}</animated.span>k training steps
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <HeroAnimation />
+        </motion.div>
+      </section>
+
+      {/* DQN Brain Section */}
+      <section>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <DQNBrainViz />
+        </motion.div>
+      </section>
+
+      {/* Metrics Section */}
+      <section>
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8"
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <motion.div variants={itemVariants}>
+            <MetricCard label="DRL Avg Throughput" value="1.85 Mbps" color="green" />
+          </motion.div>
+          <motion.div variants={itemVariants}>
+            <MetricCard label="Cubic Avg Throughput" value="1.24 Mbps" color="amber" />
+          </motion.div>
+          <motion.div variants={itemVariants}>
+            <MetricCard label="DRL Avg RTT" value="12.4 ms" color="green" />
+          </motion.div>
+          <motion.div variants={itemVariants}>
+            <MetricCard label="Cubic Avg RTT" value="25.8 ms" color="amber" />
+          </motion.div>
+        </motion.div>
+
+        {metrics.DRL && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="glass p-4 rounded-xl h-[300px]">
+              <h4 className="text-sm font-semibold text-gray-300 mb-4">Throughput Comparison (Mbps)</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={metrics.DRL}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="time" stroke="rgba(255,255,255,0.4)" />
+                  <YAxis stroke="rgba(255,255,255,0.4)" />
+                  <Tooltip contentStyle={{ backgroundColor: '#111118', borderColor: 'rgba(255,255,255,0.1)' }} />
+                  <Line isAnimationActive={true} animationDuration={1200} type="monotone" dataKey="throughput_mbps" stroke="#22c55e" strokeWidth={2} dot={false} name="DRL" />
+                  {metrics.Cubic && <Line isAnimationActive={true} animationDuration={1200} type="monotone" data={metrics.Cubic} dataKey="throughput_mbps" stroke="#f59e0b" strokeWidth={2} dot={false} name="Cubic" />}
+                  {metrics.NewReno && <Line isAnimationActive={true} animationDuration={1200} type="monotone" data={metrics.NewReno} dataKey="throughput_mbps" stroke="#a855f7" strokeWidth={2} dot={false} name="NewReno" />}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="glass p-4 rounded-xl h-[300px]">
+              <h4 className="text-sm font-semibold text-gray-300 mb-4">RTT Comparison (ms)</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={metrics.DRL}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="time" stroke="rgba(255,255,255,0.4)" />
+                  <YAxis stroke="rgba(255,255,255,0.4)" />
+                  <Tooltip contentStyle={{ backgroundColor: '#111118', borderColor: 'rgba(255,255,255,0.1)' }} />
+                  <Line isAnimationActive={true} animationDuration={1200} type="monotone" dataKey="rtt_ms" stroke="#22c55e" strokeWidth={2} dot={false} name="DRL" />
+                  {metrics.Cubic && <Line isAnimationActive={true} animationDuration={1200} type="monotone" data={metrics.Cubic} dataKey="rtt_ms" stroke="#f59e0b" strokeWidth={2} dot={false} name="Cubic" />}
+                  {metrics.NewReno && <Line isAnimationActive={true} animationDuration={1200} type="monotone" data={metrics.NewReno} dataKey="rtt_ms" stroke="#a855f7" strokeWidth={2} dot={false} name="NewReno" />}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
