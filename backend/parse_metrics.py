@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"\""Parse NS-3 TCP simulation metrics and generate comparison plots."\""
+"""Parse NS-3 TCP simulation metrics and generate comparison plots."""
 
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 
-BASE_PATH = os.path.abspath('.')
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 RESULT_FILES = {
     'DRL': os.path.join(BASE_PATH, 'results_rl.txt'),
     'Cubic': os.path.join(BASE_PATH, 'results_cubic.txt'),

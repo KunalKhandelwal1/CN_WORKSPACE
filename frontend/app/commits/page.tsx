@@ -1,4 +1,4 @@
-import CommitTimeline from '@/components/CommitTimeline';
+  import CommitTimeline from '@/components/CommitTimeline';
 
 export default function CommitsPage() {
   return (

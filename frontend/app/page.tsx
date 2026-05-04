@@ -1,6 +1,6 @@
 'use client';
 import { motion } from 'framer-motion';
-import { useSpring, animated } from 'react-spring';
+import { useSpring, animated } from '@react-spring/web';
 import HeroAnimation from '@/components/HeroAnimation';
 import DQNBrainViz from '@/components/DQNBrainViz';
 import MetricCard from '@/components/MetricCard';
