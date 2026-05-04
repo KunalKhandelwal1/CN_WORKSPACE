@@ -62,9 +62,10 @@ export default function ComparisonPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass p-4 rounded-xl h-[400px]">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">Throughput Over Time</h3>
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="glass p-4 rounded-xl h-[400px] flex flex-col">
+          <h3 className="text-sm font-semibold text-gray-300 mb-4 flex-none">Throughput Over Time</h3>
+          <div className="flex-1 w-full min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
             <LineChart data={metrics.DRL || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
               <XAxis dataKey="time" stroke="rgba(255,255,255,0.4)" />
@@ -75,11 +76,13 @@ export default function ComparisonPage() {
               {toggles.NewReno && <Line type="monotone" data={metrics.NewReno} dataKey="throughput_mbps" stroke="#a855f7" strokeWidth={hoveredLine === 'NewReno' ? 4 : 2} opacity={hoveredLine && hoveredLine !== 'NewReno' ? 0.3 : 1} dot={false} onMouseEnter={() => setHoveredLine('NewReno')} onMouseLeave={() => setHoveredLine(null)} />}
             </LineChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="glass p-4 rounded-xl h-[400px]">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">RTT Over Time (ms)</h3>
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="glass p-4 rounded-xl h-[400px] flex flex-col">
+          <h3 className="text-sm font-semibold text-gray-300 mb-4 flex-none">RTT Over Time (ms)</h3>
+          <div className="flex-1 w-full min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
             <LineChart data={metrics.DRL || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
               <XAxis dataKey="time" stroke="rgba(255,255,255,0.4)" />
@@ -90,6 +93,7 @@ export default function ComparisonPage() {
               {toggles.NewReno && <Line type="monotone" data={metrics.NewReno} dataKey="rtt_ms" stroke="#a855f7" strokeWidth={hoveredLine === 'NewReno' ? 4 : 2} opacity={hoveredLine && hoveredLine !== 'NewReno' ? 0.3 : 1} dot={false} onMouseEnter={() => setHoveredLine('NewReno')} onMouseLeave={() => setHoveredLine(null)} />}
             </LineChart>
           </ResponsiveContainer>
+          </div>
         </div>
       </div>
       

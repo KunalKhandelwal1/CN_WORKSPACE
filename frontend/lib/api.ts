@@ -1,6 +1,6 @@
 import { MetricPoint, TrainingPoint, SimConfig } from './types';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = 'http://localhost:8001/api';
 
 export async function getAllMetrics(): Promise<Record<string, MetricPoint[]>> {
   try {
