@@ -11,13 +11,19 @@ This project demonstrates a Deep Q-Network (DQN) agent controlling TCP congestio
 
 ## Project Files
 
-- `sim.cc` — NS-3 dumbbell topology simulation and metric collection
-- `tcp-rl.h` / `tcp-rl.cc` — RL-aware TCP congestion control algorithm binding
-- `tcp-rl-env.h` / `tcp-rl-env.cc` — OpenGym environment wrappers for TCP events and time-step observations
-- `TCP-RL-Agent.py` — Python DQN training and testing agent
-- `parse_metrics.py` — Post-processing and comparison of simulation outputs
-- `tcp_base.py` — Python base classes for TCP agent wrappers
-- `code.txt` — Build and run commands
+The project is split into two modules:
+
+`backend/` (NS-3 C++ and Python Agent)
+- `sim.cc` — NS-3 dumbbell topology simulation
+- `tcp-rl.h` / `tcp-rl.cc` — RL-aware TCP binding
+- `tcp-rl-env.h` / `tcp-rl-env.cc` — OpenGym environment wrappers
+- `TCP-RL-Agent.py` — Python DQN agent
+- `parse_metrics.py` — Metrics parsing and comparison
+- `api/server.py` — FastAPI server serving data to the UI
+
+`frontend/` (Next.js Animated UI Dashboard)
+- `app/` — Dashboard pages (Overview, Comparison, Training, Config, Commits)
+- `components/` — UI components (HeroAnimation, DQNBrainViz, etc.)
 
 ## Usage
 
@@ -47,6 +53,27 @@ This project demonstrates a Deep Q-Network (DQN) agent controlling TCP congestio
 - `openGymPort` defaults to `5555`.
 - The DQN agent uses reward parameters: `1.0` and penalty `-0.5` for time-based RL.
 - The TCP ADU size is derived from `mtu=400` bytes minus IPv4 and TCP header overhead.
+
+## Running the Dashboard
+
+### 1. Backend API
+```bash
+cd backend/api
+pip install fastapi uvicorn pandas
+uvicorn server:app --reload
+```
+
+### 2. Frontend UI
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## UI Screenshots
+[Hero Animation Placeholder]
+[DQN Brain Visualization Placeholder]
+[Cwnd Race Chart Placeholder]
 
 ## Contributors
 
