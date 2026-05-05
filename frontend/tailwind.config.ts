@@ -10,13 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: '#0a0a0f',
-        foreground: '#ffffff',
-        surface: '#111118',
-        accent: '#3b82f6',
-        success: '#22c55e',
-        cubic: '#f59e0b',
-        newreno: '#a855f7',
+        background: '#09090b',
+        foreground: '#fafafa',
+        surface: '#18181b',
+        accent: '#ffffff',
+        success: '#e4e4e7',
+        cubic: '#a1a1aa',
+        newreno: '#52525b',
       },
     },
   },

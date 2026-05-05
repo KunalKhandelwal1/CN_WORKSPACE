@@ -6,6 +6,7 @@ import { TrainingPoint } from '@/lib/types';
 import LivePacketFlow from '@/components/LivePacketFlow';
 import DQNBrainViz from '@/components/DQNBrainViz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Card } from '@/components/ui/card';
 
 export default function TrainingPage() {
   const [history, setHistory] = useState<TrainingPoint[]>([]);
@@ -33,10 +34,10 @@ export default function TrainingPage() {
 
       <LivePacketFlow throughput={currentPoint.throughput_mbps} />
 
-      <div className="glass p-6 rounded-xl">
+      <Card className="p-6 bg-black border-zinc-800 rounded-xl">
         <div className="flex justify-between items-end mb-4">
-          <label className="text-sm font-semibold text-gray-300">Step Scrubber (Replay Training)</label>
-          <span className="text-xs font-mono text-accent">Step {stepLimit} / {history.length}</span>
+          <label className="text-sm font-semibold text-zinc-300">Step Scrubber (Replay Training)</label>
+          <span className="text-xs font-mono text-zinc-100">Step {stepLimit} / {history.length}</span>
         </div>
         <input 
           type="range" 
@@ -44,50 +45,50 @@ export default function TrainingPage() {
           max={history.length || 100} 
           value={stepLimit} 
           onChange={(e) => setStepLimit(Number(e.target.value))}
-          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-accent"
+          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-100"
         />
         
         <div className="mt-6">
-          <div className="flex justify-between text-xs text-gray-400 font-mono mb-2">
+          <div className="flex justify-between text-xs text-zinc-400 font-mono mb-2">
             <span>Exploration (ε: {epsilon.toFixed(2)})</span>
             <span>Exploitation</span>
           </div>
-          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
             <motion.div 
-              className="h-full bg-gradient-to-r from-purple-500 to-accent" 
+              className="h-full bg-zinc-100" 
               animate={{ width: `${epsilon * 100}%` }} 
               transition={{ duration: 0.2 }}
             />
           </div>
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass p-4 rounded-xl h-[300px]">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">cWnd Over Steps</h3>
+        <Card className="p-4 rounded-xl h-[300px] bg-black border-zinc-800">
+          <h3 className="text-sm font-semibold text-zinc-300 mb-4">cWnd Over Steps</h3>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={currentData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="step" stroke="rgba(255,255,255,0.4)" />
               <YAxis stroke="rgba(255,255,255,0.4)" />
-              <Tooltip contentStyle={{ backgroundColor: '#111118', borderColor: 'rgba(255,255,255,0.1)' }} />
-              <Line isAnimationActive={false} type="stepAfter" dataKey="cwnd" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.1)' }} />
+              <Line isAnimationActive={false} type="stepAfter" dataKey="cwnd" stroke="#71717a" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
         
-        <div className="glass p-4 rounded-xl h-[300px]">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">Cumulative Reward</h3>
+        <Card className="p-4 rounded-xl h-[300px] bg-black border-zinc-800">
+          <h3 className="text-sm font-semibold text-zinc-300 mb-4">Cumulative Reward</h3>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={currentData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="step" stroke="rgba(255,255,255,0.4)" />
               <YAxis stroke="rgba(255,255,255,0.4)" />
-              <Tooltip contentStyle={{ backgroundColor: '#111118', borderColor: 'rgba(255,255,255,0.1)' }} />
-              <Line isAnimationActive={false} type="monotone" dataKey="reward" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.1)' }} />
+              <Line isAnimationActive={false} type="monotone" dataKey="reward" stroke="#f4f4f5" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
       </div>
       
       <div className="mt-8 scale-90 origin-top">

@@ -5,6 +5,7 @@ import { SimConfig } from '@/lib/types';
 import ConfigSlider from '@/components/ConfigSlider';
 import { Check, Copy } from 'lucide-react';
 import { generateCommand } from '@/lib/api';
+import { Card } from '@/components/ui/card';
 
 export default function ConfigPage() {
   const [config, setConfig] = useState<SimConfig>({
@@ -46,8 +47,8 @@ export default function ConfigPage() {
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="glass p-6 rounded-xl flex flex-col gap-2">
-          <h3 className="text-lg font-semibold text-white mb-4">Network Topology</h3>
+        <Card className="p-6 rounded-xl flex flex-col gap-2 bg-black border-zinc-800">
+          <h3 className="text-lg font-semibold text-zinc-100 mb-4">Network Topology</h3>
           <ConfigSlider 
             label="Bottleneck Bandwidth" value={config.bandwidth} min={1} max={10} step={1} unit="Mbps"
             onChange={v => setConfig({...config, bandwidth: v})}
@@ -63,24 +64,24 @@ export default function ConfigPage() {
             onChange={v => setConfig({...config, mtu: v})}
             explanation="Size of packets sent. Smaller MTUs increase header overhead and cause more discrete events."
           />
-        </div>
+        </Card>
 
-        <div className="glass p-6 rounded-xl flex flex-col gap-2">
-          <h3 className="text-lg font-semibold text-white mb-4">Simulation & Agent</h3>
+        <Card className="p-6 rounded-xl flex flex-col gap-2 bg-black border-zinc-800">
+          <h3 className="text-lg font-semibold text-zinc-100 mb-4">Simulation & Agent</h3>
           
           <div className="mb-6">
-            <label className="text-sm font-semibold text-gray-300 block mb-2">TCP Variant</label>
+            <label className="text-sm font-semibold text-zinc-300 block mb-2">TCP Variant</label>
             <select 
               value={config.variant}
               onChange={e => setConfig({...config, variant: e.target.value})}
-              className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-white text-sm focus:outline-none focus:border-accent transition-colors"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-md p-2 text-zinc-100 text-sm focus:outline-none focus:border-zinc-500 transition-colors"
             >
               <option>DRL-TCP (Time-based)</option>
               <option>DRL-TCP (Event-based)</option>
               <option>Cubic</option>
               <option>NewReno</option>
             </select>
-            <p className="text-xs text-gray-400 mt-2">Select the congestion control algorithm to run.</p>
+            <p className="text-xs text-zinc-500 mt-2">Select the congestion control algorithm to run.</p>
           </div>
 
           <ConfigSlider 
@@ -103,20 +104,20 @@ export default function ConfigPage() {
               />
             </>
           )}
-        </div>
+        </Card>
       </div>
 
-      <div className="glass p-6 rounded-xl">
+      <Card className="p-6 rounded-xl bg-black border-zinc-800">
         <div className="flex justify-between items-end mb-4">
-          <h3 className="text-lg font-semibold text-white">Generated Run Command</h3>
+          <h3 className="text-lg font-semibold text-zinc-100">Generated Run Command</h3>
           <button 
             onClick={handleCopy}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-md transition-colors text-sm text-gray-200"
+            className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 px-3 py-1.5 rounded-md transition-colors text-sm text-zinc-300 border border-zinc-800"
           >
             <AnimatePresence mode="wait">
               {copied ? (
                 <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                  <Check className="w-4 h-4 text-success" />
+                  <Check className="w-4 h-4 text-zinc-100" />
                 </motion.div>
               ) : (
                 <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
@@ -128,39 +129,39 @@ export default function ConfigPage() {
           </button>
         </div>
         
-        <div className="bg-[#050505] border border-white/5 rounded-lg p-4 overflow-x-auto">
+        <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 overflow-x-auto">
           <code className="text-sm font-mono whitespace-nowrap">
-            <span className="text-gray-400">./waf --run </span>
-            <span className="text-accent">"scratch/sim </span>
+            <span className="text-zinc-500">./waf --run </span>
+            <span className="text-zinc-300">"scratch/sim </span>
             
-            <span className="text-amber-400">--transport_prot=</span>
-            <span className="text-success">{config.variant === 'Cubic' ? 'TcpCubic' : config.variant === 'NewReno' ? 'TcpNewReno' : config.variant === 'DRL-TCP (Event-based)' ? 'TcpRl' : 'TcpRlTimeBased'} </span>
+            <span className="text-zinc-500">--transport_prot=</span>
+            <span className="text-zinc-100">{config.variant === 'Cubic' ? 'TcpCubic' : config.variant === 'NewReno' ? 'TcpNewReno' : config.variant === 'DRL-TCP (Event-based)' ? 'TcpRl' : 'TcpRlTimeBased'} </span>
             
-            <span className="text-amber-400">--duration=</span>
-            <span className="text-success">{config.duration} </span>
+            <span className="text-zinc-500">--duration=</span>
+            <span className="text-zinc-100">{config.duration} </span>
             
-            <span className="text-amber-400">--bottleneck_bandwidth=</span>
-            <span className="text-success">{config.bandwidth}Mbps </span>
+            <span className="text-zinc-500">--bottleneck_bandwidth=</span>
+            <span className="text-zinc-100">{config.bandwidth}Mbps </span>
             
-            <span className="text-amber-400">--bottleneck_delay=</span>
-            <span className="text-success">{config.delay}ms </span>
+            <span className="text-zinc-500">--bottleneck_delay=</span>
+            <span className="text-zinc-100">{config.delay}ms </span>
             
-            <span className="text-amber-400">--mtu=</span>
-            <span className="text-success">{config.mtu} </span>
+            <span className="text-zinc-500">--mtu=</span>
+            <span className="text-zinc-100">{config.mtu} </span>
             
             {(config.variant.includes('DRL')) && (
               <>
-                <span className="text-amber-400">--reward=</span>
-                <span className="text-success">{config.reward.toFixed(1)} </span>
+                <span className="text-zinc-500">--reward=</span>
+                <span className="text-zinc-100">{config.reward.toFixed(1)} </span>
                 
-                <span className="text-amber-400">--penalty=</span>
-                <span className="text-success">{config.penalty.toFixed(1)}</span>
+                <span className="text-zinc-500">--penalty=</span>
+                <span className="text-zinc-100">{config.penalty.toFixed(1)}</span>
               </>
             )}
-            <span className="text-accent">"</span>
+            <span className="text-zinc-300">"</span>
           </code>
         </div>
-      </div>
+      </Card>
     </main>
   );
 }

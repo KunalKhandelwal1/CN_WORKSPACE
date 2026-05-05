@@ -31,7 +31,7 @@ const initialNodes = [
 ];
 
 const createEdges = () => {
-  const edges = [];
+  const edges: any[] = [];
   const inputs = ['i1', 'i2', 'i3', 'i4', 'i5'];
   const hiddens = ['h1', 'h2', 'h3'];
   const outputs = ['o0', 'o1', 'o2', 'o3'];
@@ -104,7 +104,7 @@ export default function DQNBrainViz() {
         colorMode="dark"
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#ffffff" gap={16} size={1} opacity={0.05} />
+        <Background color="#ffffff" gap={16} size={1} style={{ opacity: 0.05 }} />
       </ReactFlow>
     </div>
   );
